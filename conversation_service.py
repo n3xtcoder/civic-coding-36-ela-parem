@@ -31,7 +31,7 @@ def define_placement_group(question: str, answer: str) -> str:
         system_prompt = Config.AI_PROMPTS["PLACEMENT_SYSTEM"]
         
         response = client.chat.complete(
-            model="ministral-8b-2410",
+            model=Config.MISTRAL_MODEL,
             messages=[
                 {
                     "role": "system",
@@ -92,7 +92,7 @@ def assess_video_response(question: str, user_answer: str, context: Optional[str
         )
         
         response = client.chat.complete(
-            model="mistral-small-latest",
+            model=Config.MISTRAL_MODEL,
             messages=[
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
