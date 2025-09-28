@@ -1,0 +1,4 @@
+# Azure App Service startup script
+# This file tells Azure how to start your Python application
+
+python main.py
