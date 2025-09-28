@@ -13,7 +13,7 @@ from aiogram.filters import Command
 
 from config import Config
 from models import UserState, UserLevel, VideoInfo, AssessmentResult, VideoConversationContext
-from airtable_service import get_user, create_user, update_user, create_message, get_videos, extract_video_info
+from airtable_service import get_user, create_user, update_user, create_message, get_videos, extract_video_info, invalidate_user_cache
 from conversation_service import define_placement_group, assess_video_response
 from logger import main_logger, performance_monitor
 from cache import video_cache, user_cache
@@ -110,6 +110,23 @@ class ConversationManager:
         """Clear conversation context for a user."""
         if user_id in user_conversations:
             del user_conversations[user_id]
+    
+    @staticmethod
+    def cleanup_user_data(user_id: int) -> None:
+        """Clean up all user data from memory (conversations and review sessions)."""
+        if user_id in user_conversations:
+            del user_conversations[user_id]
+            main_logger.log_system_event("user_conversation_cleaned", {
+                "user_id": user_id,
+                "reason": "user_deleted_from_airtable"
+            })
+        
+        if user_id in user_review_sessions:
+            del user_review_sessions[user_id]
+            main_logger.log_system_event("user_review_session_cleaned", {
+                "user_id": user_id,
+                "reason": "user_deleted_from_airtable"
+            })
 
 # Utility Functions
 @performance_monitor("assess_placement_test")
@@ -296,6 +313,13 @@ def log_user_message(message_text: str, video_record_id: Optional[str] = None) -
 def log_bot_message(message_text: str, video_record_id: Optional[str] = None) -> None:
     """Log bot message to Airtable."""
     create_message(message_text, "Bot", video_record_id)
+
+def cleanup_user_data_from_memory(user_id: int) -> None:
+    """Clean up all user data from memory when user is deleted from Airtable."""
+    ConversationManager.cleanup_user_data(user_id)
+    # Also invalidate user cache to ensure fresh data on next access
+    invalidate_user_cache(user_id)
+
 
 @performance_monitor("safe_update_user")
 async def safe_update_user(user: Dict[str, Any], delay_seconds: float = 0.5) -> bool:
@@ -753,6 +777,9 @@ async def start(message: Message) -> None:
         await message.answer(bot_response)
         return
     
+    # User not found in Airtable - clean up any existing memory data
+    cleanup_user_data_from_memory(user_id)
+    
     # Create new user
     new_user = create_user(
         user_id=user_id,
@@ -885,11 +912,17 @@ async def handle_message(message: Message) -> None:
         # Default fallback
         await message.answer(message.text)
 
-if __name__ == "__main__":
+async def main():
+    """Main function to start the bot."""
     # Validate configuration before starting
     if not Config.validate_config():
         main_logger.log_error("configuration_validation_failed")
         exit(1)
     
     main_logger.log_system_event("bot_starting")
-    asyncio.run(dp.start_polling(bot))
+    
+    # Start the bot
+    await dp.start_polling(bot)
+
+if __name__ == "__main__":
+    asyncio.run(main())

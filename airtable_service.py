@@ -105,7 +105,8 @@ def get_user(user_id: int) -> Optional[UserRecord]:
             return user_record
         else:
             airtable_logger.log_system_event("user_not_found", {
-                "user_id": user_id
+                "user_id": user_id,
+                "reason": "user_deleted_or_not_exists"
             })
             return None
             
@@ -115,6 +116,26 @@ def get_user(user_id: int) -> Optional[UserRecord]:
             "error": str(e)
         })
         return None
+
+def invalidate_user_cache(user_id: int) -> None:
+    """
+    Invalidate user cache for a specific user.
+    Useful when user is deleted from Airtable.
+    
+    Args:
+        user_id: The Telegram user ID to invalidate
+    """
+    try:
+        user_cache.delete(f"get_user:{user_id}")
+        airtable_logger.log_system_event("user_cache_invalidated", {
+            "user_id": user_id,
+            "reason": "user_deleted_from_airtable"
+        })
+    except Exception as e:
+        airtable_logger.log_error("user_cache_invalidation_error", {
+            "user_id": user_id,
+            "error": str(e)
+        })
 
 def create_user(user_id: int, user_level: str = "Entry", user_video_number: Optional[int] = None, user_state: str = "") -> Optional[UserRecord]:
     """
