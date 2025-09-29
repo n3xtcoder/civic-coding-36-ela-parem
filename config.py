@@ -23,7 +23,6 @@ class Config:
     
     # Mistral AI configuration
     MISTRAL_API_KEY: str = os.getenv("MISTRAL_API_KEY", "")
-    MISTRAL_MODEL: str = os.getenv("MISTRAL_MODEL", "mistral-small-latest")
     
     # Bot behavior constants
     VIDEO_WAIT_TIME: int = 10  # seconds to wait before asking question
@@ -70,32 +69,29 @@ class Config:
         "OVERVIEW_BUTTON": "📋 Kursübersicht"
     }
     
-    # AI Prompts for Mistral AI (from environment variables)
+    # AI Prompts for Mistral AI
     AI_PROMPTS = {
-        "PLACEMENT_SYSTEM": os.getenv(
-            "MISTRAL_PLACEMENT_SYSTEM_PROMPT",
-            "You are a placement test evaluator. Given a question and a user's answer, respond with ONLY ONE WORD: \"Beginner\", \"Intermediate\", or \"Advanced\". Do not include any explanation or extra text."
+        "PLACEMENT_SYSTEM": (
+            "You are a placement test evaluator. "
+            "Given a question and a user's answer, respond with ONLY ONE WORD: "
+            "\"Beginner\", \"Intermediate\", or \"Advanced\". "
+            "Do not include any explanation or extra text."
         ),
-        "VIDEO_ASSESSMENT_SYSTEM": os.getenv(
-            "MISTRAL_ASSESSMENT_SYSTEM_PROMPT",
-            "You are an educational assistant AI. Help the user improve their understanding of the video content. Engage with the user answer in a short chat style. Stay positive and encouraging. Finish with a question to the user to deepen their understanding."
+        "VIDEO_ASSESSMENT_SYSTEM": (
+            os.getenv("MISTRAL_ASSESSMENT_SYSTEM_PROMPT", "You are an educational assistant AI. Help the user improve their understanding of the video content. Engage with the user answer in a short chat style. Stay positive and encouraging. If necessary, Finish with a question to the user to deepen their understanding.")
         ),
-        "VIDEO_ASSESSMENT_USER_TEMPLATE": os.getenv(
-            "MISTRAL_ASSESSMENT_USER_TEMPLATE",
-            """Question: {question}
-User's Answer: {user_answer}
-{context_section}
-{conversation_section}
-
-Please provide a JSON response with the following structure:
-{{
-    "feedback": "<constructive feedback about their response>"
-}}"""
-        ),
-        "FALLBACK_RESPONSE": os.getenv(
-            "MISTRAL_FALLBACK_RESPONSE",
-            "Thank you for your response. We're having technical difficulties with assessment right now."
-        )
+        "VIDEO_ASSESSMENT_USER_TEMPLATE": """
+        Question: {question}
+        User's Answer: {user_answer}
+        {context_section}
+        {conversation_section}
+        
+        Please provide a JSON response with the following structure:
+        {{
+            "feedback": "<constructive feedback about their response>"
+        }}
+        """,
+        "FALLBACK_RESPONSE": os.getenv("MISTRAL_FALLBACK_RESPONSE", "Thank you for your response. We're having technical difficulties with assessment right now.")
     }
     
     @classmethod
