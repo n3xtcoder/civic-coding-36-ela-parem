@@ -1,6 +1,6 @@
 # Ela Parem Telegram Bot
 
-An intelligent Telegram bot for educational video content delivery with AI-powered assessments and conversation management, deployed on Azure App Service.
+An intelligent Telegram bot for educational video content delivery with AI-powered assessments and conversation management, deployed on Render.
 
 ## Features
 
@@ -10,7 +10,7 @@ An intelligent Telegram bot for educational video content delivery with AI-power
 - **Conversation Context**: Maintains conversation history for better AI interactions
 - **Caching System**: Optimized performance with intelligent caching
 - **Lean Logging**: Production-ready logging with minimal noise
-- **Azure Deployment**: Automated deployment from GitHub to Azure App Service
+- **Render Deployment**: Automated deployment from GitHub to Render Web Service
 
 ## Architecture
 
@@ -19,40 +19,35 @@ An intelligent Telegram bot for educational video content delivery with AI-power
 - **Database**: Airtable for video content and user data
 - **Caching**: In-memory caching for performance optimization
 - **Logging**: Structured logging with file rotation
-- **Deployment**: Azure App Service with GitHub Actions CI/CD
+- **Deployment**: Render Web Service with automatic GitHub integration
 
 ## Prerequisites
 
 - Python 3.11+
-- Azure Account
+- Render Account (free tier available)
 - Telegram Bot Token (from [@BotFather](https://t.me/BotFather))
 - Airtable API Key and Base ID
 - Mistral AI API Key
 - GitHub Repository
 
-## Azure App Service Deployment
+## Render Deployment
 
-### 1. Azure Portal Setup
+### 1. Render Dashboard Setup
 
-**Create App Service:**
-1. Go to [Azure Portal](https://portal.azure.com)
-2. Click "Create a resource" → "Web App"
-3. Fill in details:
-   - **Name**: `ela-parem-bot` (must be unique globally)
-   - **Runtime stack**: `Python 3.11`
-   - **Operating System**: `Linux`
-   - **Region**: Choose closest to your users
-   - **Pricing tier**: `B1 Basic` (minimum for production)
-
-**Configure Deployment:**
-1. Go to your App Service → "Deployment Center"
-2. Choose "GitHub" as source
-3. Select your repository and branch (`main` or `master`)
-4. Azure will automatically set up GitHub Actions
+**Create Background Worker:**
+1. Go to [Render Dashboard](https://dashboard.render.com)
+2. Click "New +" → "Background Worker"
+3. Connect your GitHub repository
+4. Fill in service details:
+   - **Name**: `ela-parem-bot`
+   - **Runtime**: `Python 3`
+   - **Build Command**: `pip install -r requirements.txt`
+   - **Start Command**: `python main.py`
+   - **Plan**: `Free` (for development) or `Starter` (for production)
 
 ### 2. Environment Variables Configuration
 
-Go to "Configuration" → "Application settings" and add:
+In the Render dashboard, go to "Environment" tab and add:
 
 ```bash
 # Required Environment Variables
@@ -64,41 +59,34 @@ USERS_TABLE_ID=your_users_table_id_here
 MESSAGES_TABLE_ID=your_messages_table_id_here
 MISTRAL_API_KEY=your_mistral_api_key_here
 
-# Azure-specific settings
+# Render-specific settings
 ENVIRONMENT=production
 LOG_LEVEL=INFO
-WEBSITES_ENABLE_APP_SERVICE_STORAGE=true
 ```
 
-### 3. GitHub Repository Setup
+### 3. Automatic Deployment
 
-**Add GitHub Secrets:**
-1. Go to your GitHub repo → Settings → Secrets and variables → Actions
-2. Add `AZUREAPPSERVICE_PUBLISHPROFILE` with the publish profile from Azure
-
-**Get Publish Profile:**
-1. In Azure Portal → Your App Service → "Get publish profile"
-2. Copy the entire XML content
-3. Add it as `AZUREAPPSERVICE_PUBLISHPROFILE` secret in GitHub
-
-### 4. Deploy
-
-**Automatic Deployment:**
-- Push code to your `main` branch
-- GitHub Actions will automatically deploy to Azure
-- Monitor deployment in "Actions" tab
+**GitHub Integration:**
+- Render automatically deploys when you push to your connected branch
+- Default branch is `main` or `master`
+- Each push triggers a new deployment
+- Monitor deployments in the Render dashboard
 
 **Manual Deployment:**
 ```bash
-# Clone repository
-git clone <your-github-repo-url>
-cd 36_Ela_Parem
-
 # Push to trigger deployment
 git add .
-git commit -m "Initial deployment"
+git commit -m "Deploy to Render"
 git push origin main
 ```
+
+### 4. Service Configuration
+
+**Advanced Settings:**
+- **Auto-Deploy**: Enabled by default
+- **Restart Policy**: Automatic restart on failure
+- **Health Check**: Not applicable for background workers
+- **Custom Domains**: Not available for background workers
 
 ## Local Development
 
@@ -193,37 +181,41 @@ python main.py
 
 ## Monitoring and Maintenance
 
-### Azure Monitoring
+### Render Monitoring
 
-**Application Insights:**
-1. Enable Application Insights in Azure Portal
-2. Monitor performance and errors
-3. Set up alerts for critical issues
+**Service Dashboard:**
+1. Monitor background worker status in Render dashboard
+2. View real-time logs and metrics
+3. Track deployment history and status
+4. Monitor resource usage and performance
+5. Check worker restart history
 
 **Log Streaming:**
-```bash
-# Azure CLI
-az webapp log tail --name ela-parem-bot --resource-group <resource-group>
-
-# Or in Azure Portal → App Service → Log stream
-```
+- Real-time logs available in Render dashboard
+- Filter logs by level (INFO, WARNING, ERROR)
+- Download logs for offline analysis
+- Log retention varies by plan
 
 **Health Monitoring:**
-- Azure Portal → "Health check" shows bot status
-- Monitor CPU, Memory, and Request metrics
-- Set up alerts for downtime
+- Render automatically monitors background worker health
+- Automatic restarts on crashes or failures
+- Uptime monitoring and alerts
+- Performance metrics tracking
+- Worker process monitoring
 
 ### Scaling
 
-**Scale Out (Horizontal):**
-1. Go to "Scale out" in Azure Portal
-2. Adjust instance count based on usage
-3. Enable auto-scaling for traffic spikes
+**Free Tier Limitations:**
+- Background worker sleeps after 15 minutes of inactivity
+- Cold starts may take 30-60 seconds
+- Limited to 750 hours/month
+- No custom domains
+- Worker may restart if idle for too long
 
-**Scale Up (Vertical):**
-1. Go to "Scale up" in Azure Portal
-2. Choose higher pricing tier for more resources
-3. Consider Premium plans for production
+**Paid Plans:**
+- **Starter**: $7/month - Always running background worker
+- **Standard**: $25/month - More resources, better performance
+- **Pro**: $85/month - High availability, auto-scaling
 
 ## Troubleshooting
 
@@ -231,56 +223,70 @@ az webapp log tail --name ela-parem-bot --resource-group <resource-group>
 
 **1. Deployment Fails:**
 ```bash
-# Check GitHub Actions logs
-# Go to GitHub → Actions → Failed workflow
+# Check Render deployment logs
+# Go to Render Dashboard → Your Service → Logs
 
-# Check Azure deployment logs
-az webapp log download --name ela-parem-bot --resource-group <resource-group>
+# Common build issues:
+# - Missing dependencies in requirements.txt
+# - Python version mismatch
+# - Environment variables not set
 ```
 
 **2. Bot Not Responding:**
-- Check environment variables are set correctly in Azure
+- Check environment variables are set correctly in Render
 - Verify bot token is valid
-- Check Azure App Service logs
+- Check Render background worker logs for errors
 - Test bot token: `curl "https://api.telegram.org/bot<TOKEN>/getMe"`
+- Ensure background worker is not sleeping (Free tier limitation)
+- Check if worker process crashed and restarted
 
-**3. Airtable Connection Issues:**
+**3. Background Worker Sleeping (Free Tier):**
+- Free tier background workers sleep after 15 minutes of inactivity
+- Bot may not respond immediately after waking up
+- Consider upgrading to Starter plan for always-on worker
+- Implement periodic health checks to keep worker active
+
+**4. Airtable Connection Issues:**
 - Verify API key and base ID
 - Check table IDs are correct
 - Monitor Airtable API usage limits
+- Check network connectivity in Render background worker logs
 
-**4. High Costs:**
-- Monitor usage in Azure Portal
-- Set up billing alerts
-- Consider scaling down during low usage
-- Use Free tier for development
+**5. Worker Process Issues:**
+- Monitor worker restart frequency in Render dashboard
+- Check for memory leaks or resource exhaustion
+- Review error logs for Python exceptions
+- Ensure proper error handling in bot code
 
 ### Debug Mode
 
-Enable debug logging in Azure:
-1. Go to Configuration → Application settings
+Enable debug logging in Render:
+1. Go to Render Dashboard → Your Background Worker → Environment
 2. Add `LOG_LEVEL=DEBUG`
-3. Restart the app service
+3. Redeploy the background worker
 
 ## Security Best Practices
 
 1. **Never commit `.env` files** to version control
-2. **Use Azure Key Vault** for sensitive production data
+2. **Use Render Environment Variables** for sensitive production data
 3. **Enable HTTPS** for webhook endpoints (if using webhooks)
 4. **Set up monitoring alerts**
 5. **Regular security updates**
-6. **Use managed identity** for Azure resources
+6. **Use environment-specific configurations**
 
 ## Cost Optimization
 
 **Development:**
 - Use Free tier for testing
-- Scale down when not in use
+- Background worker sleeps after inactivity (saves resources)
+- 750 hours/month limit on Free tier
+- Monitor worker restart patterns
 
 **Production:**
-- **B1 Basic**: ~$13/month for production
-- **S1 Standard**: ~$55/month for higher traffic
-- **P1V2 Premium**: ~$83/month for auto-scaling
+- **Free**: $0/month - Good for development and low traffic
+- **Starter**: $7/month - Always running background worker
+- **Standard**: $25/month - Better performance, more resources
+- **Pro**: $85/month - High availability, auto-scaling
 
 ## Code Structure
 
@@ -294,10 +300,7 @@ Enable debug logging in Azure:
 ├── logger.py              # Logging system
 ├── cache.py               # Caching system
 ├── requirements.txt       # Dependencies
-├── web.config            # Azure App Service configuration
-├── startup.txt           # Azure startup script
-├── .deployment           # Azure deployment configuration
-├── .github/workflows/    # GitHub Actions workflows
+├── services/              # Additional service modules
 └── env.example           # Environment variables template
 ```
 
@@ -318,8 +321,9 @@ Enable debug logging in Azure:
 For issues and questions:
 - Create an issue in the repository
 - Check the troubleshooting section
-- Review Azure App Service logs
-- Monitor GitHub Actions deployment logs
+- Review Render background worker logs
+- Monitor deployment status in Render dashboard
+- Check worker restart history for stability issues
 
 ---
 
