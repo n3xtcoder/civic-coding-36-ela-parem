@@ -303,28 +303,4 @@ Enable debug logging in Render:
 ├── services/              # Additional service modules
 └── env.example           # Environment variables template
 ```
-
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
-5. Submit a pull request
-
-## License
-
-[Add your license information here]
-
-## Support
-
-For issues and questions:
-- Create an issue in the repository
-- Check the troubleshooting section
-- Review Render background worker logs
-- Monitor deployment status in Render dashboard
-- Check worker restart history for stability issues
-
----
-
-**Note**: This bot is designed for educational purposes and should be used in accordance with Telegram's Terms of Service and Bot API guidelines.
+ses and should be used in accordance with Telegram's Terms of Service and Bot API guidelines.
