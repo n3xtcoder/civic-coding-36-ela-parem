@@ -26,8 +26,7 @@ class Config:
     
     # Bot behavior constants
     VIDEO_WAIT_TIME: int = 10  # seconds to wait before asking question
-    MAX_VIDEOS_PER_LEVEL: int = 2
-    
+
     # User states
     USER_STATES = {
         "PLACEMENT_TEST": "Placement Test",

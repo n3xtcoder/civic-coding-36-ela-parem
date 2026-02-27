@@ -602,24 +602,26 @@ async def handle_video_preview(message: Message, user: Dict[str, Any]) -> None:
     next_video_number = current_video_number + 1
     next_level = user_level
 
-    if next_video_number > Config.MAX_VIDEOS_PER_LEVEL:
+    # Check if next video exists in current level
+    next_video_info = get_video_info(next_level, next_video_number)
+
+    if not next_video_info:
+        # No more videos in this level — try next level
         next_level = get_next_level(user_level)
         next_video_number = 1
 
-        # Check if we've exhausted all levels
-        if next_level == user_level and current_video_number >= Config.MAX_VIDEOS_PER_LEVEL:
+        # Check if we've exhausted all levels (Advanced stays Advanced)
+        if next_level == user_level:
+            await message.answer(Config.MESSAGES["ALL_VIDEOS_COMPLETED"])
+            return
+
+        next_video_info = get_video_info(next_level, next_video_number)
+        if not next_video_info:
             await message.answer(Config.MESSAGES["ALL_VIDEOS_COMPLETED"])
             return
 
         # Send level-up congratulations
         await message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=next_level))
-
-    # Look up the next video's info
-    next_video_info = get_video_info(next_level, next_video_number)
-
-    if not next_video_info:
-        await message.answer(Config.MESSAGES["ALL_VIDEOS_COMPLETED"])
-        return
 
     # Update user state to VIDEO_PREVIEW and advance to the previewed video
     user['fields']['State'] = UserState.VIDEO_PREVIEW.value
@@ -740,33 +742,34 @@ async def handle_next_video_callback(callback_query: types.CallbackQuery, user: 
     user_id = callback_query.from_user.id
     user_level = user['fields'].get('Level', '')
     current_video_number = user['fields'].get('Video Number', 1)
-    
+
     # Increment video number
     new_video_number = current_video_number + 1
-    
-    # Check if we need to progress to next level
-    if new_video_number > Config.MAX_VIDEOS_PER_LEVEL:
+
+    # Check if next video exists in current level
+    video_data = get_video_info(user_level, new_video_number)
+
+    if not video_data:
+        # No more videos in this level — try next level
         new_level = get_next_level(user_level)
         new_video_number = 1
         user['fields']['Level'] = new_level
-        await callback_query.message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=new_level))
-    else:
-        user['fields']['Level'] = user_level
-    
+        video_data = get_video_info(new_level, new_video_number)
+        if video_data:
+            await callback_query.message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=new_level))
+
     # Update user data
     user['fields']['Video Number'] = new_video_number
     user['fields']['State'] = UserState.SHOWING_VIDEO.value
     await safe_update_user(user)
-    
+
     # Clear conversation context for the new video
-    user_level = user['fields'].get('Level', '')
-    video_data = get_video_info(user_level, new_video_number)
     if video_data:
         ConversationManager.update_context_for_video(user_id, video_data)
-    
+
     # Acknowledge callback
     await callback_query.answer(Config.MESSAGES["NEXT_VIDEO_LOADING"])
-    
+
     # Start showing the next video
     await handle_showing_video_state(callback_query.message, user)
 
@@ -850,30 +853,31 @@ async def handle_next_video_from_reply(message: Message, user: Dict[str, Any]) -
     user_id = message.from_user.id
     user_level = user['fields'].get('Level', '')
     current_video_number = user['fields'].get('Video Number', 1)
-    
+
     # Increment video number
     new_video_number = current_video_number + 1
-    
-    # Check if we need to progress to next level
-    if new_video_number > Config.MAX_VIDEOS_PER_LEVEL:
+
+    # Check if next video exists in current level
+    video_data = get_video_info(user_level, new_video_number)
+
+    if not video_data:
+        # No more videos in this level — try next level
         new_level = get_next_level(user_level)
         new_video_number = 1
         user['fields']['Level'] = new_level
-        await message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=new_level))
-    else:
-        user['fields']['Level'] = user_level
-    
+        video_data = get_video_info(new_level, new_video_number)
+        if video_data:
+            await message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=new_level))
+
     # Update user data
     user['fields']['Video Number'] = new_video_number
     user['fields']['State'] = UserState.SHOWING_VIDEO.value
     await safe_update_user(user)
-    
+
     # Clear conversation context for the new video
-    user_level = user['fields'].get('Level', '')
-    video_data = get_video_info(user_level, new_video_number)
     if video_data:
         ConversationManager.update_context_for_video(user_id, video_data)
-    
+
     # Start showing the next video
     await handle_showing_video_state(message, user)
 
