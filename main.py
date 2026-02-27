@@ -505,35 +505,50 @@ async def handle_chat_mode_state(message: Message, user: Dict[str, Any]) -> None
     """Handle messages when user is in Chat Mode state."""
     user_id = message.from_user.id
     user_record_id = get_user_record_id(user, user_id)
-    
+
     if not user_record_id:
         await ErrorHandler.handle_user_data_error(message, user_id)
         return
-        
+
     user_level, video_number = UserStateManager.get_user_progress(user)
-    
+
     # Get video information for assessment
     video_data = get_video_info(user_level, video_number)
-    
+
     if video_data:
+        # Check if user wants to stop discussing this topic
+        negative_responses = ["nein", "no", "nee", "ne", "nö", "nope"]
+        if message.text.strip().lower() in negative_responses:
+            # Log user message
+            log_user_message(message.text, video_data.record_id if video_data else None)
+
+            # Send hint to click Verstanden!
+            hint = (
+                f"Wenn du nicht mehr über \"{video_data.title}\" erfahren möchtest, "
+                f"klicke auf 'Verstanden!' um zum nächsten Thema zu gelangen."
+            )
+            log_bot_message(hint, video_data.record_id if video_data else None)
+            await BotResponseHandler.send_response(message, hint, create_next_video_keyboard(), user_id)
+            return
+
         # Get existing conversation context for this video
         conversation_context = ConversationManager.get_conversation_context(user_id)
-        
+
         # Log user message with video reference
         message_record = create_message(message.text, "User", video_data.record_id)
         message_id = message_record['id'] if message_record else None
-        
+
         # Add user message to conversation context
         ConversationManager.add_user_message(user_id, message.text, message_id)
-        
+
         # Get conversation history for context
         conversation_history = conversation_context.get_conversation_summary() if conversation_context else ""
-        
+
         # Assess the response using Mistral AI with conversation context
         try:
             assessment = assess_video_response(
-                video_data.question, 
-                message.text, 
+                video_data.question,
+                message.text,
                 video_data.understanding_benchmark,
                 conversation_history
             )
@@ -544,16 +559,16 @@ async def handle_chat_mode_state(message: Message, user: Dict[str, Any]) -> None
                 "error": str(e)
             })
             bot_response = f"Du hast gesagt: {message.text}"
-        
+
         # Log and send response
         bot_message_record = create_message(bot_response, "Bot", video_data.record_id)
         bot_message_id = bot_message_record['id'] if bot_message_record else None
-        
+
         # Add assistant message to conversation context
         ConversationManager.add_assistant_message(user_id, bot_response, bot_message_id)
-        
+
         await BotResponseHandler.send_response(message, bot_response, create_next_video_keyboard(), user_id)
-        
+
         main_logger.log_user_action(user_id, "chat_message_processed", {
             "video_title": video_data.title,
             "message_length": len(message.text)
