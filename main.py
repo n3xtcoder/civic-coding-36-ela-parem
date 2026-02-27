@@ -14,7 +14,7 @@ from aiogram.filters import Command
 from config import Config
 from models import UserState, UserLevel, VideoInfo, AssessmentResult, VideoConversationContext
 from airtable_service import get_user, create_user, update_user, delete_user, create_message, get_videos, extract_video_info, invalidate_user_cache
-from conversation_service import define_placement_group, assess_video_response
+from conversation_service import define_placement_group, assess_video_response, assess_topic_knowledge
 from logger import main_logger, performance_monitor
 from cache import video_cache, user_cache
 from utils import BotResponseHandler, VideoManager, KeyboardFactory, UserStateManager, ErrorHandler
@@ -162,6 +162,10 @@ def create_ready_keyboard() -> InlineKeyboardMarkup:
 def create_next_video_keyboard() -> ReplyKeyboardMarkup:
     """Create keyboard with 'Next Video' and 'Overview' buttons for chat mode."""
     return KeyboardFactory.create_next_video_keyboard()
+
+def create_video_preview_keyboard() -> InlineKeyboardMarkup:
+    """Create keyboard with Yes/No buttons for video topic preview."""
+    return KeyboardFactory.create_video_preview_keyboard()
 
 def get_video_info(user_level: str, video_number: int) -> Optional[VideoInfo]:
     """Get video information for a specific level and video number with caching."""
@@ -587,6 +591,149 @@ async def handle_course_overview_state(message: Message, user: Dict[str, Any]) -
         "message_length": len(message.text)
     })
 
+# Video Preview and Topic Assessment Handlers
+async def handle_video_preview(message: Message, user: Dict[str, Any]) -> None:
+    """Present a preview question about the next video topic and let user decide."""
+    user_id = message.from_user.id
+    user_level = user['fields'].get('Level', '')
+    current_video_number = user['fields'].get('Video Number', 1)
+
+    # Calculate next video coordinates
+    next_video_number = current_video_number + 1
+    next_level = user_level
+
+    if next_video_number > Config.MAX_VIDEOS_PER_LEVEL:
+        next_level = get_next_level(user_level)
+        next_video_number = 1
+
+        # Check if we've exhausted all levels
+        if next_level == user_level and current_video_number >= Config.MAX_VIDEOS_PER_LEVEL:
+            await message.answer(Config.MESSAGES["ALL_VIDEOS_COMPLETED"])
+            return
+
+        # Send level-up congratulations
+        await message.answer(Config.MESSAGES["CONGRATULATIONS"].format(level=next_level))
+
+    # Look up the next video's info
+    next_video_info = get_video_info(next_level, next_video_number)
+
+    if not next_video_info:
+        await message.answer(Config.MESSAGES["ALL_VIDEOS_COMPLETED"])
+        return
+
+    # Update user state to VIDEO_PREVIEW and advance to the previewed video
+    user['fields']['State'] = UserState.VIDEO_PREVIEW.value
+    user['fields']['Video Number'] = next_video_number
+    user['fields']['Level'] = next_level
+    await safe_update_user(user)
+
+    # Clear old conversation context
+    ConversationManager.cleanup_user_data(user_id)
+
+    # Ask the preview question
+    preview_text = Config.MESSAGES["VIDEO_PREVIEW_QUESTION"].format(title=next_video_info.title)
+    await message.answer(preview_text, reply_markup=create_video_preview_keyboard())
+
+    main_logger.log_user_action(user_id, "video_preview_shown", {
+        "video_title": next_video_info.title,
+        "level": next_level,
+        "video_number": next_video_number
+    })
+
+async def handle_topic_assessment(message: Message, user: Dict[str, Any]) -> None:
+    """Ask the topic question before showing the video."""
+    user_id = message.from_user.id
+    user_level = user['fields'].get('Level', '')
+    video_number = user['fields'].get('Video Number', 1)
+
+    video_info = get_video_info(user_level, video_number)
+    if not video_info:
+        await ErrorHandler.handle_video_not_found(message, user_id)
+        return
+
+    # Update state to TOPIC_ASSESSMENT
+    user['fields']['State'] = UserState.TOPIC_ASSESSMENT.value
+    await safe_update_user(user)
+
+    # Send the video's question
+    await message.answer(f"❓ {video_info.question}")
+
+    main_logger.log_user_action(user_id, "topic_assessment_question_sent", {
+        "video_title": video_info.title,
+        "level": user_level,
+        "video_number": video_number
+    })
+
+async def handle_topic_assessment_response(message: Message, user: Dict[str, Any]) -> None:
+    """Evaluate user's topic knowledge and decide whether to show video."""
+    user_id = message.from_user.id
+    user_level = user['fields'].get('Level', '')
+    video_number = user['fields'].get('Video Number', 1)
+
+    video_info = get_video_info(user_level, video_number)
+    if not video_info:
+        await ErrorHandler.handle_video_not_found(message, user_id)
+        return
+
+    # Log user message
+    log_user_message(message.text, video_info.record_id if video_info else None)
+
+    # Use AI to evaluate if user knows the topic
+    result = assess_topic_knowledge(video_info.question, message.text)
+
+    if result["knows_topic"]:
+        # User already knows this topic — send feedback and skip to next preview
+        feedback = result.get("feedback", Config.MESSAGES["TOPIC_ALREADY_KNOWN"])
+        bot_response = f"💭 {feedback}"
+        log_bot_message(bot_response, video_info.record_id if video_info else None)
+        await message.answer(bot_response)
+        await asyncio.sleep(1)
+
+        main_logger.log_user_action(user_id, "topic_already_known", {
+            "video_title": video_info.title,
+            "level": user_level,
+            "video_number": video_number
+        })
+
+        # Move to next video preview
+        await handle_video_preview(message, user)
+    else:
+        # User needs to learn — show the video
+        feedback = result.get("feedback", Config.MESSAGES["TOPIC_SHOW_VIDEO"])
+        bot_response = f"💭 {feedback}"
+        log_bot_message(bot_response, video_info.record_id if video_info else None)
+        await message.answer(bot_response)
+        await asyncio.sleep(1)
+
+        main_logger.log_user_action(user_id, "topic_needs_learning", {
+            "video_title": video_info.title,
+            "level": user_level,
+            "video_number": video_number
+        })
+
+        # Show the video
+        user['fields']['State'] = UserState.SHOWING_VIDEO.value
+        await safe_update_user(user)
+        await handle_showing_video_state(message, user)
+
+async def handle_preview_yes_callback(callback_query: types.CallbackQuery, user: Dict[str, Any]) -> None:
+    """Handle user choosing YES on video preview — ask the topic question."""
+    await callback_query.answer()
+    await handle_topic_assessment(callback_query.message, user)
+
+async def handle_preview_no_callback(callback_query: types.CallbackQuery, user: Dict[str, Any]) -> None:
+    """Handle user choosing NO on video preview — skip to next video's preview."""
+    user_id = callback_query.from_user.id
+    await callback_query.answer(Config.MESSAGES["VIDEO_SKIPPED"])
+
+    main_logger.log_user_action(user_id, "video_skipped", {
+        "level": user['fields'].get('Level', ''),
+        "video_number": user['fields'].get('Video Number', 1)
+    })
+
+    # Call handle_video_preview again — it will compute the NEXT video
+    await handle_video_preview(callback_query.message, user)
+
 # Callback Handler Functions
 async def handle_next_video_callback(callback_query: types.CallbackQuery, user: Dict[str, Any]) -> None:
     """Handle Next Video button click."""
@@ -816,6 +963,10 @@ async def handle_callback(callback_query: types.CallbackQuery) -> None:
         await handle_ready_callback(callback_query, user)
     elif callback_data == "next_video":
         await handle_next_video_callback(callback_query, user)
+    elif callback_data == "preview_yes":
+        await handle_preview_yes_callback(callback_query, user)
+    elif callback_data == "preview_no":
+        await handle_preview_no_callback(callback_query, user)
     elif callback_data.startswith("select_video:"):
         # Extract video record ID and review flag from callback data
         parts = callback_data.split(":", 2)
@@ -880,10 +1031,10 @@ async def handle_message(message: Message) -> None:
         
         bot_response = Config.MESSAGES["NEXT_VIDEO_START"]
         log_bot_message(bot_response, video_data.record_id if video_data else None)
-        
+
         await message.answer(bot_response)
         await asyncio.sleep(1)
-        await handle_next_video_from_reply(message, user)
+        await handle_video_preview(message, user)
         return
     
     # Check if user pressed "Kursübersicht" button
@@ -902,6 +1053,10 @@ async def handle_message(message: Message) -> None:
         await handle_chat_mode_state(message, user)
     elif user_state == UserState.COURSE_OVERVIEW.value:
         await handle_course_overview_state(message, user)
+    elif user_state == UserState.VIDEO_PREVIEW.value:
+        await message.answer(Config.MESSAGES["USE_BUTTONS_REMINDER"], reply_markup=create_video_preview_keyboard())
+    elif user_state == UserState.TOPIC_ASSESSMENT.value:
+        await handle_topic_assessment_response(message, user)
     else:
         # Default fallback
         await message.answer(message.text)

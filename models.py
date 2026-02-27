@@ -13,6 +13,8 @@ class UserState(Enum):
     WAITING_FOR_RESPONSE = "Waiting for Response"
     CHAT_MODE = "Chat Mode"
     COURSE_OVERVIEW = "Course Overview"
+    VIDEO_PREVIEW = "Video Preview"
+    TOPIC_ASSESSMENT = "Topic Assessment"
 
 class UserLevel(Enum):
     """Enum for user levels."""

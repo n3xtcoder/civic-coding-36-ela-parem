@@ -31,10 +31,12 @@ class Config:
     # User states
     USER_STATES = {
         "PLACEMENT_TEST": "Placement Test",
-        "SHOWING_VIDEO": "Showing Video", 
+        "SHOWING_VIDEO": "Showing Video",
         "WAITING_FOR_RESPONSE": "Waiting for Response",
         "CHAT_MODE": "Chat Mode",
-        "COURSE_OVERVIEW": "Course Overview"
+        "COURSE_OVERVIEW": "Course Overview",
+        "VIDEO_PREVIEW": "Video Preview",
+        "TOPIC_ASSESSMENT": "Topic Assessment"
     }
     
     # User levels
@@ -66,7 +68,13 @@ class Config:
         "NEXT_VIDEO_START": "Super! Dann starten wir mit dem nächsten Video!",
         "READY_BUTTON": "🚀 Ja!",
         "UNDERSTOOD_BUTTON": "Verstanden!",
-        "OVERVIEW_BUTTON": "📋 Kursübersicht"
+        "OVERVIEW_BUTTON": "📋 Kursübersicht",
+        "VIDEO_PREVIEW_QUESTION": "Möchtest du mehr über \"{title}\" erfahren?",
+        "VIDEO_SKIPPED": "Video übersprungen!",
+        "ALL_VIDEOS_COMPLETED": "🎉 Du hast alle verfügbaren Videos abgeschlossen! Herzlichen Glückwunsch!",
+        "USE_BUTTONS_REMINDER": "Bitte verwende die Buttons, um fortzufahren.",
+        "TOPIC_ALREADY_KNOWN": "Super, du kennst dich schon gut aus! Weiter zum nächsten Thema.",
+        "TOPIC_SHOW_VIDEO": "Lass uns das Thema genauer anschauen!"
     }
     
     # AI Prompts for Mistral AI
@@ -91,6 +99,19 @@ class Config:
             "feedback": "<constructive feedback about their response>"
         }}
         """,
+        "TOPIC_ASSESSMENT_SYSTEM": (
+            "Du bist ein freundlicher Lernbegleiter. "
+            "Der Nutzer wurde gefragt, ob er ein Thema kennt. "
+            "Bewerte die Antwort und entscheide, ob der Nutzer das Thema bereits gut kennt "
+            "oder ob er das Video dazu anschauen sollte. "
+            "Antworte NUR als JSON: "
+            "{\"knows_topic\": true/false, \"feedback\": \"<kurzes Feedback>\"}"
+        ),
+        "TOPIC_ASSESSMENT_USER_TEMPLATE": (
+            "Frage: {question}\n"
+            "Antwort des Nutzers: {user_answer}\n\n"
+            "Antworte als JSON: {{\"knows_topic\": true/false, \"feedback\": \"<kurzes Feedback>\"}}"
+        ),
         "FALLBACK_RESPONSE": os.getenv("MISTRAL_FALLBACK_RESPONSE", "Thank you for your response. We're having technical difficulties with assessment right now.")
     }
     

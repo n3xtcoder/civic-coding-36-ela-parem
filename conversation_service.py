@@ -144,3 +144,69 @@ def assess_video_response(question: str, user_answer: str, context: Optional[str
         return AssessmentResult(
             feedback=Config.AI_PROMPTS["FALLBACK_RESPONSE"]
         )
+
+def assess_topic_knowledge(question: str, user_answer: str) -> Dict[str, Any]:
+    """
+    Uses Mistral AI to evaluate if a user already knows a topic
+    before showing them the video.
+
+    Args:
+        question: The topic question (e.g. "Weißt du was Talente sind?")
+        user_answer: The user's answer
+
+    Returns:
+        Dict with {"knows_topic": bool, "feedback": str}
+    """
+    try:
+        system_prompt = Config.AI_PROMPTS["TOPIC_ASSESSMENT_SYSTEM"]
+        user_prompt = Config.AI_PROMPTS["TOPIC_ASSESSMENT_USER_TEMPLATE"].format(
+            question=question,
+            user_answer=user_answer
+        )
+
+        response = client.chat.complete(
+            model="mistral-small-latest",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt}
+            ],
+            max_tokens=150,
+            temperature=0.3
+        )
+
+        result = response.choices[0].message.content.strip()
+
+        # Clean up markdown code blocks
+        if result.startswith('```json'):
+            result = result[7:]
+            if result.endswith('```'):
+                result = result[:-3]
+            result = result.strip()
+        elif result.startswith('```'):
+            result = result[3:]
+            if result.endswith('```'):
+                result = result[:-3]
+            result = result.strip()
+
+        parsed = json.loads(result)
+        conversation_logger.log_system_event("topic_assessment_completed", {
+            "knows_topic": parsed.get("knows_topic", False),
+            "question_length": len(question),
+            "answer_length": len(user_answer)
+        })
+        return {
+            "knows_topic": parsed.get("knows_topic", False),
+            "feedback": parsed.get("feedback", "")
+        }
+
+    except Exception as e:
+        conversation_logger.log_error("topic_assessment_error", {
+            "error": str(e),
+            "question_length": len(question),
+            "answer_length": len(user_answer)
+        })
+        # Default: show the video (assume they don't know the topic)
+        return {
+            "knows_topic": False,
+            "feedback": "Lass uns das Thema gemeinsam anschauen!"
+        }

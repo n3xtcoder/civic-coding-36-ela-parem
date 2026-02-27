@@ -80,6 +80,16 @@ class KeyboardFactory:
         )
     
     @staticmethod
+    def create_video_preview_keyboard() -> InlineKeyboardMarkup:
+        """Create keyboard with Yes/No buttons for video topic preview."""
+        return InlineKeyboardMarkup(inline_keyboard=[
+            [
+                InlineKeyboardButton(text="✅ Ja!", callback_data="preview_yes"),
+                InlineKeyboardButton(text="⏭ Nein, überspringen", callback_data="preview_no")
+            ]
+        ])
+
+    @staticmethod
     def create_course_overview_keyboard(user_level: str, current_video_number: int) -> InlineKeyboardMarkup:
         """Create inline keyboard with clickable video titles for course overview."""
         try:
