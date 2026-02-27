@@ -82,26 +82,32 @@ def get_videos(level: Optional[str] = None, video_number: Optional[int] = None) 
         })
         return []
 
-@cached(ttl=300)  # Cache for 5 minutes
 def get_user(user_id: int) -> Optional[UserRecord]:
     """
     Retrieve a user from Airtable by Telegram ID.
-    
+    Uses manual caching with the global user_cache so invalidation works correctly.
+
     Args:
         user_id: The Telegram user ID
-        
+
     Returns:
         User record if found, None otherwise
     """
+    cache_key = f"get_user:{user_id}"
+    cached_data = user_cache.get(cache_key)
+    if cached_data is not None:
+        return cached_data
+
     try:
         users = users_table.all(formula=f"{{Telegram ID}}={user_id}")
-        
+
         if users:
             user_record = users[0]
             airtable_logger.log_system_event("user_found", {
                 "user_id": user_id,
                 "airtable_id": user_record.get('id')
             })
+            user_cache.set(cache_key, user_record, ttl=300)
             return user_record
         else:
             airtable_logger.log_system_event("user_not_found", {
@@ -109,7 +115,7 @@ def get_user(user_id: int) -> Optional[UserRecord]:
                 "reason": "user_deleted_or_not_exists"
             })
             return None
-            
+
     except Exception as e:
         airtable_logger.log_error("user_query_error", {
             "user_id": user_id,
@@ -121,7 +127,7 @@ def invalidate_user_cache(user_id: int) -> None:
     """
     Invalidate user cache for a specific user.
     Useful when user is deleted from Airtable.
-    
+
     Args:
         user_id: The Telegram user ID to invalidate
     """
