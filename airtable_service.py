@@ -189,6 +189,39 @@ def create_user(user_id: int, user_level: str = "Entry", user_video_number: Opti
         })
         return None
 
+def delete_user(user_id: int) -> bool:
+    """
+    Delete a user from Airtable by Telegram ID.
+
+    Args:
+        user_id: The Telegram user ID
+
+    Returns:
+        True if deleted successfully, False otherwise
+    """
+    try:
+        existing_user = get_user(user_id)
+        if not existing_user:
+            return True  # Already gone
+
+        record_id = existing_user.get('id')
+        if record_id:
+            users_table.delete(record_id)
+            invalidate_user_cache(user_id)
+            airtable_logger.log_system_event("user_deleted", {
+                "user_id": user_id,
+                "airtable_id": record_id
+            })
+            return True
+        return False
+
+    except Exception as e:
+        airtable_logger.log_error("user_deletion_error", {
+            "user_id": user_id,
+            "error": str(e)
+        })
+        return False
+
 def update_user(user_data: UserRecord) -> bool:
     """
     Update user data in Airtable.

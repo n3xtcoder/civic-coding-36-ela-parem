@@ -13,7 +13,7 @@ from aiogram.filters import Command
 
 from config import Config
 from models import UserState, UserLevel, VideoInfo, AssessmentResult, VideoConversationContext
-from airtable_service import get_user, create_user, update_user, create_message, get_videos, extract_video_info, invalidate_user_cache
+from airtable_service import get_user, create_user, update_user, delete_user, create_message, get_videos, extract_video_info, invalidate_user_cache
 from conversation_service import define_placement_group, assess_video_response
 from logger import main_logger, performance_monitor
 from cache import video_cache, user_cache
@@ -46,8 +46,6 @@ def load_welcome_message() -> tuple[str, str, str]:
     result = (title, description, question)
     video_cache.set(cache_key, result, ttl=3600)  # Cache for 1 hour
     return result
-
-welcome_title, welcome_description, welcome_question = load_welcome_message()
 
 # Global conversation context storage
 # Key: user_id, Value: VideoConversationContext
@@ -375,6 +373,7 @@ async def handle_placement_test_state(message: Message, user: Dict[str, Any]) ->
     log_user_message(message.text)
     
     # Assess the placement test answer
+    _, _, welcome_question = load_welcome_message()
     placement_group = assess_placement_test(welcome_question, message.text)
     
     # Update user data
@@ -766,18 +765,10 @@ async def start(message: Message) -> None:
     user = get_user(user_id)
     
     if user:
-        user_record_id = user['id']  # Get Airtable record ID
-        if not user_record_id:
-            main_logger.log_error(f"User {user_id} exists but has no Airtable record ID")
-            await message.answer("Fehler beim Abrufen der Benutzerdaten. Bitte versuche es erneut.")
-            return
-            
-        bot_response = Config.MESSAGES["ALREADY_REGISTERED"]
-        log_bot_message(bot_response)  # No video associated with start command
-        await message.answer(bot_response)
-        return
-    
-    # User not found in Airtable - clean up any existing memory data
+        # Existing user wants to restart — delete old record and start fresh
+        delete_user(user_id)
+
+    # Clean up any existing memory data
     cleanup_user_data_from_memory(user_id)
     
     # Create new user
@@ -790,12 +781,15 @@ async def start(message: Message) -> None:
     
     if new_user and new_user.get('id'):
         user_record_id = new_user['id']  # Get Airtable record ID
-        
+
+        # Load welcome message fresh from Airtable
+        welcome_title, welcome_description, welcome_question = load_welcome_message()
+
         # Log welcome messages to Airtable (no video associated with welcome)
         log_bot_message(welcome_title)
         log_bot_message(welcome_description)
         log_bot_message(welcome_question)
-        
+
         # Send welcome messages
         await message.answer(welcome_title)
         await asyncio.sleep(1)
