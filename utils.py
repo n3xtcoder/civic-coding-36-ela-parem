@@ -52,6 +52,31 @@ class VideoManager:
         return None
     
     @staticmethod
+    def get_first_video_number(level: str) -> Optional[int]:
+        """Get the lowest video number available for a given level."""
+        cache_key = f"first_video_number:{level}"
+        cached_data = video_cache.get(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        videos = get_videos(level=level)
+        if not videos:
+            return None
+
+        video_numbers = []
+        for v in videos:
+            vn = v['fields'].get('Video Number', v['fields'].get('# Video Number'))
+            if vn is not None:
+                video_numbers.append(vn)
+
+        if not video_numbers:
+            return None
+
+        first = min(video_numbers)
+        video_cache.set(cache_key, first, ttl=600)
+        return first
+
+    @staticmethod
     def invalidate_video_cache(user_level: str, video_number: int) -> None:
         """Invalidate video cache when video data changes."""
         cache_key = f"video_info:{user_level}:{video_number}"

@@ -19,6 +19,11 @@ from logger import main_logger, performance_monitor
 from cache import video_cache, user_cache
 from utils import BotResponseHandler, VideoManager, KeyboardFactory, UserStateManager, ErrorHandler
 
+def get_first_video_number_for_level(level: str) -> int:
+    """Get the first video number for a level, defaulting to 1."""
+    first = VideoManager.get_first_video_number(level)
+    return first if first is not None else 1
+
 # Initialize bot
 bot = Bot(token=Config.BOT_TOKEN)
 dp = Dispatcher()
@@ -383,7 +388,7 @@ async def handle_placement_test_state(message: Message, user: Dict[str, Any]) ->
     # Update user data
     user['fields']['Level'] = placement_group
     user['fields']['State'] = UserState.SHOWING_VIDEO.value
-    user['fields']['Video Number'] = 1
+    user['fields']['Video Number'] = get_first_video_number_for_level(placement_group)
     
     # Send response with ready button first
     bot_response = "Perfekt! Du bist bereit für dein erstes Video."
@@ -623,7 +628,7 @@ async def handle_video_preview(message: Message, user: Dict[str, Any]) -> None:
     if not next_video_info:
         # No more videos in this level — try next level
         next_level = get_next_level(user_level)
-        next_video_number = 1
+        next_video_number = get_first_video_number_for_level(next_level)
 
         # Check if we've exhausted all levels (Advanced stays Advanced)
         if next_level == user_level:
@@ -767,7 +772,7 @@ async def handle_next_video_callback(callback_query: types.CallbackQuery, user: 
     if not video_data:
         # No more videos in this level — try next level
         new_level = get_next_level(user_level)
-        new_video_number = 1
+        new_video_number = get_first_video_number_for_level(new_level)
         user['fields']['Level'] = new_level
         video_data = get_video_info(new_level, new_video_number)
         if video_data:
@@ -878,7 +883,7 @@ async def handle_next_video_from_reply(message: Message, user: Dict[str, Any]) -
     if not video_data:
         # No more videos in this level — try next level
         new_level = get_next_level(user_level)
-        new_video_number = 1
+        new_video_number = get_first_video_number_for_level(new_level)
         user['fields']['Level'] = new_level
         video_data = get_video_info(new_level, new_video_number)
         if video_data:
